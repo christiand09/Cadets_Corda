@@ -12,11 +12,7 @@ import net.corda.core.serialization.CordaSerializable
 //  State
 // *********
 
-@CordaSerializable
 
-enum class StatusEnums {
-    SINGLE, MARRIED
-}
 @BelongsToContract(UserContract::class)
 class UserState(val name: String,
                 val age: Int,
