@@ -24,9 +24,7 @@ class Initiator (private val name :String,
                  private val address : String,
                  private val status : Status,
                  private val gender: Gender,
-                 private val counterParty: Party
-): FlowLogic<SignedTransaction>() {
-
+                 private val counterParty: Party): FlowLogic<SignedTransaction>() {
 
     private fun userStates(): UserState {
         return UserState(
@@ -40,11 +38,13 @@ class Initiator (private val name :String,
                 participants = listOf(ourIdentity, counterParty)
         )
     }
-
     @Suspendable
     override fun call(): SignedTransaction {
+
+
         val transaction: TransactionBuilder = transaction()
         val signedTransaction: SignedTransaction = verifyAndSign(transaction)
+
         val sessions: List<FlowSession> = (userStates().participants - ourIdentity).map { initiateFlow(it) }.toSet().toList()
         val transactionSignedByAllParties: SignedTransaction = collectSignature(signedTransaction, sessions)
         return recordTransaction(transactionSignedByAllParties, sessions)
@@ -55,7 +55,6 @@ class Initiator (private val name :String,
         val issueCommand = Command(UserContract.Commands.Issue(), userStates().participants.map { it.owningKey })
         val builder = TransactionBuilder(notary = notary)
 
-        //contract sa userID
         builder.addOutputState(userStates(), UserContract.ID)
         builder.addCommand(issueCommand)
         return builder
