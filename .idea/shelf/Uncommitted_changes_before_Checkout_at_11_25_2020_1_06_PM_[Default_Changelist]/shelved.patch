@@ -1,0 +1,17 @@
+Index: workflows/src/main/kotlin/com/template/flows/CreateUserOwnNodesWithoutOtherParty.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.template.flows\r\n\r\nimport co.paralleluniverse.fibers.Suspendable\r\nimport com.template.contracts.UserContract\r\nimport com.template.states.GenderEnums\r\nimport com.template.states.StatusEnums\r\nimport com.template.states.UserState\r\nimport net.corda.core.contracts.Command\r\nimport net.corda.core.contracts.UniqueIdentifier\r\nimport net.corda.core.contracts.requireThat\r\nimport net.corda.core.flows.*\r\nimport net.corda.core.identity.Party\r\nimport net.corda.core.transactions.SignedTransaction\r\nimport net.corda.core.transactions.TransactionBuilder\r\n\r\n// *********\r\n// Flows\r\n// *********\r\n@InitiatingFlow\r\n@StartableByRPC\r\nclass CreateUserOwnNodesWithoutOtherParty (private val name :String,\r\n                                           private val age : Int,\r\n                                           private val address : String,\r\n                                           private val gender : GenderEnums,\r\n                                           private val status : StatusEnums): FlowLogic<SignedTransaction>() {\r\n\r\n\r\n    private fun userStates(): UserState {\r\n        return UserState(\r\n                name = name,\r\n                age = age,\r\n                address = address,\r\n                gender = gender,\r\n                status = status,\r\n                node = ourIdentity,\r\n                linearId = UniqueIdentifier(),\r\n                participants = listOf(ourIdentity)\r\n        )\r\n    }\r\n\r\n    @Suspendable\r\n    override fun call(): SignedTransaction {\r\n        val transaction: TransactionBuilder = transaction()\r\n        val transactionSignedByAllParties: SignedTransaction = verifyAndSign(transaction)\r\n        return recordTransaction(transactionSignedByAllParties)\r\n    }\r\n\r\n    private fun transaction(): TransactionBuilder {\r\n        val notary: Party = serviceHub.networkMapCache.notaryIdentities.first()\r\n        val issueCommand = Command(UserContract.Commands.Issue(), ourIdentity.owningKey)\r\n        val builder = TransactionBuilder(notary = notary)\r\n        builder.addOutputState(userStates(), UserContract.ID)\r\n        builder.addCommand(issueCommand)\r\n        return builder\r\n    }\r\n\r\n    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {\r\n        transaction.verify(serviceHub)\r\n        return serviceHub.signInitialTransaction(transaction)\r\n    }\r\n\r\n    @Suspendable\r\n    private fun recordTransaction(transaction: SignedTransaction): SignedTransaction =\r\n            subFlow(FinalityFlow(transaction, emptyList()))\r\n}\r\n\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- workflows/src/main/kotlin/com/template/flows/CreateUserOwnNodesWithoutOtherParty.kt	(revision 3e5108e302218eba443a74328709ad39991c4f32)
++++ workflows/src/main/kotlin/com/template/flows/CreateUserOwnNodesWithoutOtherParty.kt	(date 1606280756092)
+@@ -24,6 +24,7 @@
+                                            private val gender : GenderEnums,
+                                            private val status : StatusEnums): FlowLogic<SignedTransaction>() {
+ 
++): FlowLogic<SignedTransaction>() {
+ 
+     private fun userStates(): UserState {
+         return UserState(

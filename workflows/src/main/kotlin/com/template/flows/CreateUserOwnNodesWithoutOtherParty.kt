@@ -17,7 +17,8 @@ import net.corda.core.transactions.TransactionBuilder
 // *********
 @InitiatingFlow
 @StartableByRPC
-class CreateUserOwnNodesWithoutOtherParty (private val name :String,
+class CreateUserOwnNodesWithoutOtherParty (
+                private val name :String,
                  private val age : Int,
                  private val address : String,
                  private val status : StatusEnums

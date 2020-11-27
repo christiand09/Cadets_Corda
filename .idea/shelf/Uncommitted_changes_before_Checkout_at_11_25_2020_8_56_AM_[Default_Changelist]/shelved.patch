@@ -1,0 +1,81 @@
+Index: workflows/src/main/kotlin/com/template/flows/UpdateUserInfo.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.template.flows\r\n\r\nimport co.paralleluniverse.fibers.Suspendable\r\nimport com.template.contracts.UserContract\r\nimport com.template.states.StatusEnums\r\nimport com.template.states.UserState\r\nimport net.corda.core.contracts.Command\r\nimport net.corda.core.contracts.UniqueIdentifier\r\nimport net.corda.core.contracts.requireThat\r\nimport net.corda.core.flows.*\r\nimport net.corda.core.identity.Party\r\nimport net.corda.core.node.services.queryBy\r\nimport net.corda.core.node.services.vault.QueryCriteria\r\nimport net.corda.core.transactions.SignedTransaction\r\nimport net.corda.core.transactions.TransactionBuilder\r\n\r\n// *********\r\n// Flows\r\n// *********\r\n@InitiatingFlow\r\n@StartableByRPC\r\nclass UpdateUserInfo (private val name :String,\r\n                      private val age : Int,\r\n                      private val address : String,\r\n                      private val status : StatusEnums,\r\n                      private val linearId: UniqueIdentifier\r\n\r\n): FlowLogic<SignedTransaction>() {\r\n    override fun call() {\r\n\r\n    }\r\n\r\n}\r\n\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- workflows/src/main/kotlin/com/template/flows/UpdateUserInfo.kt	(revision 1356e5f05ab2028d66fc95e1a20904e467877f45)
++++ workflows/src/main/kotlin/com/template/flows/UpdateUserInfo.kt	(date 1606208112289)
+@@ -26,7 +26,27 @@
+                       private val linearId: UniqueIdentifier
+ 
+ ): FlowLogic<SignedTransaction>() {
+-    override fun call() {
++    override fun call(): SignedTransaction {
++
++        // You retrieve the notary identity from the network map.
++        val notary = serviceHub.networkMapCache.notaryIdentities[0]
++
++// You create the transaction components.
++        val outputState = UserState(name, age, address, status = status)
++
++// You create a transaction builder and add the components.
++        val txBuilder = TransactionBuilder(notary = notary)
++                .addOutputState(outputState, UserContract.ID)
++
++
++// Verifying the transaction.
++        txBuilder.verify(serviceHub)
++
++// Signing the transaction.
++        val signedTx = serviceHub.signInitialTransaction(txBuilder)
++
++// Creating a session with the other party.
++
+ 
+     }
+ 
+Index: workflows/src/main/kotlin/com/template/flows/UserFlow.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.template.flows\r\n\r\nimport co.paralleluniverse.fibers.Suspendable\r\nimport com.template.contracts.UserContract\r\nimport com.template.states.StatusEnums\r\nimport com.template.states.UserState\r\nimport net.corda.core.contracts.Command\r\nimport net.corda.core.contracts.UniqueIdentifier\r\nimport net.corda.core.contracts.requireThat\r\nimport net.corda.core.flows.*\r\nimport net.corda.core.identity.Party\r\nimport net.corda.core.transactions.SignedTransaction\r\nimport net.corda.core.transactions.TransactionBuilder\r\n\r\n// *********\r\n// Flows\r\n// *********\r\n@InitiatingFlow\r\n@StartableByRPC\r\nclass Initiator (private val name :String,\r\n                 private val age : Int,\r\n                 private val address : String,\r\n                 private val status : StatusEnums,\r\n                 private val counterParty: Party\r\n): FlowLogic<SignedTransaction>() {\r\n\r\n\r\n    fun userStates(): UserState {\r\n        return UserState(\r\n                name = name,\r\n                age = age,\r\n                address =address,\r\n                status = status,\r\n                node = ourIdentity,\r\n                linearId = UniqueIdentifier(),\r\n                participants = listOf(ourIdentity, counterParty)\r\n        )\r\n    }\r\n\r\n    @Suspendable\r\n    override fun call(): SignedTransaction {\r\n        val transaction: TransactionBuilder = transaction()\r\n        val signedTransaction: SignedTransaction = verifyAndSign(transaction)\r\n        val sessions: List<FlowSession> = (userStates().participants - ourIdentity).map { initiateFlow(it) }.toSet().toList()\r\n        val transactionSignedByAllParties: SignedTransaction = collectSignature(signedTransaction, sessions)\r\n        return recordTransaction(transactionSignedByAllParties, sessions)\r\n    }\r\n\r\n    private fun transaction(): TransactionBuilder {\r\n        val notary: Party = serviceHub.networkMapCache.notaryIdentities.first()\r\n        val issueCommand = Command(UserContract.Commands.Issue(), userStates().participants.map { it.owningKey })\r\n        val builder = TransactionBuilder(notary = notary)\r\n\r\n//contract sa userID\r\n        builder.addOutputState(userStates(), UserContract.ID)\r\n        builder.addCommand(issueCommand)\r\n        return builder\r\n    }\r\n\r\n    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {\r\n        transaction.verify(serviceHub)\r\n        return serviceHub.signInitialTransaction(transaction)\r\n    }\r\n\r\n    @Suspendable\r\n    private fun collectSignature(\r\n            transaction: SignedTransaction,\r\n            sessions: List<FlowSession>\r\n    ): SignedTransaction = subFlow(CollectSignaturesFlow(transaction, sessions))\r\n\r\n    @Suspendable\r\n    private fun recordTransaction(transaction: SignedTransaction, sessions: List<FlowSession>): SignedTransaction =\r\n            subFlow(FinalityFlow(transaction, sessions))\r\n}\r\n\r\n\r\n@InitiatedBy(Initiator::class)\r\nclass IOUIssueFlowResponder(val flowSession: FlowSession) : FlowLogic<SignedTransaction>() {\r\n\r\n    @Suspendable\r\n    override fun call(): SignedTransaction {\r\n        val signTransactionFlow = object : SignTransactionFlow(flowSession) {\r\n            override fun checkTransaction(stx: SignedTransaction) = requireThat {\r\n\r\n            }\r\n        }\r\n        val signedTransaction = subFlow(signTransactionFlow)\r\n        return subFlow(ReceiveFinalityFlow(otherSideSession = flowSession, expectedTxId = signedTransaction.id))\r\n    }\r\n}
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- workflows/src/main/kotlin/com/template/flows/UserFlow.kt	(revision 1356e5f05ab2028d66fc95e1a20904e467877f45)
++++ workflows/src/main/kotlin/com/template/flows/UserFlow.kt	(date 1606207178905)
+@@ -17,7 +17,7 @@
+ // *********
+ @InitiatingFlow
+ @StartableByRPC
+-class Initiator (private val name :String,
++class UserFlow (private val name :String,
+                  private val age : Int,
+                  private val address : String,
+                  private val status : StatusEnums,
+@@ -74,7 +74,7 @@
+ }
+ 
+ 
+-@InitiatedBy(Initiator::class)
++@InitiatedBy(UserFlow::class)
+ class IOUIssueFlowResponder(val flowSession: FlowSession) : FlowLogic<SignedTransaction>() {
+ 
+     @Suspendable
+Index: contracts/src/main/kotlin/com/template/states/EnumClass.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.template.states\r\n\r\nimport net.corda.core.serialization.CordaSerializable\r\n\r\n@CordaSerializable\r\n\r\nenum class StatusEnums {\r\n    SINGLE, MARRIED\r\n}
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- contracts/src/main/kotlin/com/template/states/EnumClass.kt	(revision 1356e5f05ab2028d66fc95e1a20904e467877f45)
++++ contracts/src/main/kotlin/com/template/states/EnumClass.kt	(date 1606207178891)
+@@ -6,4 +6,4 @@
+ 
+ enum class StatusEnums {
+     SINGLE, MARRIED
+-}
+\ No newline at end of file
++}

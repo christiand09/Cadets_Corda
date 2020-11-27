@@ -22,5 +22,6 @@ class UserContract : Contract {
     // Used to indicate the transaction's intent.
     interface Commands : CommandData {
         class Issue : Commands
+        class Update: Commands
     }
 }

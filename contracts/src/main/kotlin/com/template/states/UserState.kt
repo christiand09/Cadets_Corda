@@ -19,6 +19,7 @@ class UserState(val name: String,
                 val address: String,
                 val node: Party,
                 val status: StatusEnums,
+                val delete: Boolean = false,
                 override val linearId: UniqueIdentifier,
                 override val participants : List<Party>
 ) :  LinearState
