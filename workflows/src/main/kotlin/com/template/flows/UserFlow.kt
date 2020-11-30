@@ -5,6 +5,7 @@ import com.template.contracts.UserContract
 import com.template.states.Gender
 import com.template.states.Status
 import com.template.states.UserState
+import functions.FunctionFlow
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.contracts.requireThat
@@ -24,7 +25,7 @@ class Initiator (private val name :String,
                  private val address : String,
                  private val status : Status,
                  private val gender: Gender,
-                 private val counterParty: Party): FlowLogic<SignedTransaction>() {
+                 private val counterParty: Party): FunctionFlow() {
 
     private fun userStates(): UserState {
         return UserState(
@@ -60,20 +61,7 @@ class Initiator (private val name :String,
         return builder
     }
 
-    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {
-        transaction.verify(serviceHub)
-        return serviceHub.signInitialTransaction(transaction)
-    }
 
-    @Suspendable
-    private fun collectSignature(
-            transaction: SignedTransaction,
-            sessions: List<FlowSession>
-    ): SignedTransaction = subFlow(CollectSignaturesFlow(transaction, sessions))
-
-    @Suspendable
-    private fun recordTransaction(transaction: SignedTransaction, sessions: List<FlowSession>): SignedTransaction =
-            subFlow(FinalityFlow(transaction, sessions))
 }
 
 @InitiatedBy(Initiator::class)
