@@ -5,6 +5,7 @@ import com.template.contracts.UserContract
 import com.template.states.Gender
 import com.template.states.Status
 import com.template.states.UserState
+import functions.FunctionFlow
 
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
@@ -27,7 +28,7 @@ class Initiator (private val name :String,
                  private val status : Status,
                  private val gender: Gender,
                  private val counterParty: Party
-): FlowLogic<SignedTransaction>() {
+): FunctionFlow() {
 
     @Suspendable
     override fun call(): SignedTransaction {
@@ -50,9 +51,9 @@ class Initiator (private val name :String,
                 .addOutputState(newUserState, UserContract.ID)
                 .addCommand(command)
 
+
         txBuilder.verify(serviceHub)
         val tx = serviceHub.signInitialTransaction(txBuilder)
-
         val sessions = (newUserState.participants - ourIdentity).map { initiateFlow(it as Party) }
         val stx = subFlow(CollectSignaturesFlow(tx, sessions))
         return subFlow(FinalityFlow(stx, sessions))
@@ -75,6 +76,3 @@ class UserFlowResponder(val counterpartySession: FlowSession) : FlowLogic<Signed
         return subFlow(ReceiveFinalityFlow(counterpartySession, txWeJustSignedId.id))
     }
 }
-
-
-
