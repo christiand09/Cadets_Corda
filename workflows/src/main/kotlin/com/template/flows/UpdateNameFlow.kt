@@ -30,6 +30,7 @@ class UpdateNameFlow (private val name :String,
                 node = ourIdentity,
                 linearId = linearId,
                 participants = settle.state.data.participants
+
         )
     }
     @Suspendable
