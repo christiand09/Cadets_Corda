@@ -33,7 +33,7 @@ class Initiator (private val name :String,
     @Suspendable
     override fun call(): SignedTransaction {
 
-        val notary = serviceHub.networkMapCache.notaryIdentities.first()
+        val sessions = initiateFlow(counterParty)
         val command = Command(UserContract.Commands.Issue(), listOf(counterParty).map { it.owningKey })
 
         val newUserState = UserState(
@@ -47,16 +47,21 @@ class Initiator (private val name :String,
                 participants = listOf(ourIdentity, counterParty)
         )
 
-        val txBuilder = TransactionBuilder(notary)
+
+        val utx = TransactionBuilder(myNotary)
                 .addOutputState(newUserState, UserContract.ID)
                 .addCommand(command)
 
+//        txBuilder.verify(serviceHub)
+//        val tx = serviceHub.signInitialTransaction(txBuilder) //     val sessions = (newUserState.participants - ourIdentity).map { initiateFlow(it as Party) }
+//        val stx = subFlow(CollectSignaturesFlow(tx, sessions))
+//        return subFlow(FinalityFlow(stx, sessions))
 
-        txBuilder.verify(serviceHub)
-        val tx = serviceHub.signInitialTransaction(txBuilder)
-        val sessions = (newUserState.participants - ourIdentity).map { initiateFlow(it as Party) }
-        val stx = subFlow(CollectSignaturesFlow(tx, sessions))
-        return subFlow(FinalityFlow(stx, sessions))
+        return signCollectNotarize(
+                session = listOf(sessions),
+                utx = utx,
+                spectator = spectator()
+        )
     }
 
 }
