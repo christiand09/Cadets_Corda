@@ -30,7 +30,7 @@ class Initiator (private val name :String,
 ): FunctionFlow() {
 
     private companion object{
-        val log = loggerFor<InitiatingFlow>()
+        val log = loggerFor<Initiator>()
     }
 
     @Suspendable

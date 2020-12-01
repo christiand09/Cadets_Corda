@@ -29,7 +29,7 @@ class UpdatePartyInfo (private val name :String,
                   private val linearId: UniqueIdentifier) : FunctionFlow() {
 
     private companion object {
-        val log = loggerFor<InitiatingFlow>()
+        val log = loggerFor<UpdatePartyInfo>()
     }
 
     @Suspendable

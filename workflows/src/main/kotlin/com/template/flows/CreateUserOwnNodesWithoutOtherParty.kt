@@ -27,7 +27,7 @@ class CreateUserOwnNodesWithoutOtherParty (
         private val status : Status): FunctionFlow() {
 
     private companion object{
-        val log = loggerFor<InitiatingFlow>()
+        val log = loggerFor<CreateUserOwnNodesWithoutOtherParty>()
     }
     @Suspendable
     override fun call(): SignedTransaction {
