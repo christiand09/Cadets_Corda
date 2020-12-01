@@ -1,52 +1,54 @@
 package functions
 
 import co.paralleluniverse.fibers.Suspendable
+import com.template.flows.Initiator
 import com.template.states.UserState
-import javassist.NotFoundException
-import net.corda.core.contracts.UniqueIdentifier
+import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
-import net.corda.core.identity.Party
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
-import java.util.*
-import javax.annotation.Signed
+import org.slf4j.Logger;
 
 abstract class FunctionFlow  :FlowLogic<SignedTransaction>()  {
         val myNotary
             get() = serviceHub.networkMapCache.notaryIdentities.firstOrNull()
                     ?: throw FlowException("No Notary Found.")
-
-    fun spectator(): List<Party>{
-        return listOf(spectate())
-    }
-    fun spectate(): Party{
-        return serviceHub.identityService.partiesFromName("observer water", false).singleOrNull()
-                ?: throw NotFoundException("No match found")
-
-
-
-    }
+    /**
+     *SignedTransaction with counter party
+     */
     @Suspendable
     fun signCollectNotarize(
-        session: List<FlowSession>,
-        utx: TransactionBuilder,
-        spectator: List<Party>? = null
+            session: List<FlowSession>,
+            utx: TransactionBuilder,
+            log: Logger
 
 ) : SignedTransaction {
 
-        //Verify Transaction
+        log.info("Verify Transaction")
         utx.verify(serviceHub)
 
-        //Signing transaction locally
+        log.info("Signing transaction locally")
         val ptx  = serviceHub.signInitialTransaction(utx)
 
-        //collecting signatures
+        log.info("collecting signatures")
         val ctx  = subFlow(CollectSignaturesFlow(ptx, session))
 
-        //Initiate flow
-        val ntx  = subFlow(FinalityFlow(ctx, session))
+        log.info("Initiate flow")
+        return subFlow(FinalityFlow(ctx, session))
+    }
+}
+@InitiatedBy(Initiator::class)
+class Responder(val counterpartySession: FlowSession) : FlowLogic<SignedTransaction>() {
 
-        return ntx
-
+    @Suspendable
+    override fun call(): SignedTransaction {
+        val signedTransactionFlow = object : SignTransactionFlow(counterpartySession) {
+            override fun checkTransaction(stx: SignedTransaction) = requireThat {
+                val output = stx.tx.outputs.single().data
+                "The output must be a UserState" using (output is UserState)
+            }
+        }
+        val txWeJustSignedId = subFlow(signedTransactionFlow)
+        return subFlow(ReceiveFinalityFlow(counterpartySession, txWeJustSignedId.id))
     }
 }
