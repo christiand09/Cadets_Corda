@@ -5,6 +5,7 @@ import com.template.flows.Initiator
 import com.template.states.UserState
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
+import net.corda.core.identity.Party
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import org.slf4j.Logger;
@@ -36,6 +37,31 @@ abstract class FunctionFlow  :FlowLogic<SignedTransaction>()  {
         log.info("Initiate flow")
         return subFlow(FinalityFlow(ctx, session))
     }
+
+    /**
+     *SignedTransaction without counter party
+     */
+    @Suspendable
+    fun notarize(
+            localSigner: Party,
+            utx: TransactionBuilder,
+            log: Logger
+
+    ) : SignedTransaction {
+
+        log.info("Verify Transaction")
+        utx.verify(serviceHub)
+
+        log.info("Signing transaction locally")
+        val ptx  = serviceHub.signInitialTransaction(utx, localSigner.owningKey)
+
+        log.info("collecting signatures")
+        val ctx  = subFlow(CollectSignaturesFlow(ptx, emptyList()))
+
+        log.info("Initiate flow")
+        return subFlow(FinalityFlow(ctx, emptyList()))
+    }
+
 }
 @InitiatedBy(Initiator::class)
 class Responder(val counterpartySession: FlowSession) : FlowLogic<SignedTransaction>() {

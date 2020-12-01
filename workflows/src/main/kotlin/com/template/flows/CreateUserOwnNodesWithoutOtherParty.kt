@@ -5,12 +5,14 @@ import com.template.contracts.UserContract
 import com.template.states.Gender
 import com.template.states.Status
 import com.template.states.UserState
+import functions.FunctionFlow
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
+import net.corda.core.utilities.loggerFor
 
 // *********
 // ONLY ONE PARTY VIEW INFO
@@ -22,44 +24,39 @@ class CreateUserOwnNodesWithoutOtherParty (
         private val age : Int,
         private val address : String,
         private val gender: Gender,
-        private val status : Status): FlowLogic<SignedTransaction>() {
+        private val status : Status): FunctionFlow() {
 
-    private fun userStates(): UserState {
-        return UserState(
-                name = name,
-                age = age,
-                address =address,
-                status = status,
-                gender = gender,
-                node = ourIdentity,
-                linearId = UniqueIdentifier(),
-                participants = listOf(ourIdentity)
+    private companion object{
+        val log = loggerFor<InitiatingFlow>()
+    }
+    @Suspendable
+    override fun call(): SignedTransaction {
+
+        val issueCommand = Command(UserContract.Commands.Issue(), ourIdentity.owningKey)
+
+        log.info("Creating output state")
+        val newUserState =  UserState(
+                    name = name,
+                    age = age,
+                    address =address,
+                    status = status,
+                    gender = gender,
+                    node = ourIdentity,
+                    linearId = UniqueIdentifier(),
+                    participants = listOf(ourIdentity)
+            )
+
+        log.info("Building Transaction")
+        val utx = TransactionBuilder(myNotary)
+                .addOutputState(newUserState, UserContract.ID)
+                .addCommand(issueCommand)
+
+        return notarize(
+                localSigner = ourIdentity,
+                utx = utx,
+                log = log
         )
     }
 
-    @Suspendable
-    override fun call(): SignedTransaction {
-        val transaction: TransactionBuilder = transaction()
-        val transactionSignedByAllParties: SignedTransaction = verifyAndSign(transaction)
-        return recordTransaction(transactionSignedByAllParties)
-    }
-
-    private fun transaction(): TransactionBuilder {
-        val notary: Party = serviceHub.networkMapCache.notaryIdentities.first()
-        val issueCommand = Command(UserContract.Commands.Issue(), ourIdentity.owningKey)
-        val builder = TransactionBuilder(notary = notary)
-        builder.addOutputState(userStates(), UserContract.ID)
-        builder.addCommand(issueCommand)
-        return builder
-    }
-
-    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {
-        transaction.verify(serviceHub)
-        return serviceHub.signInitialTransaction(transaction)
-    }
-
-    @Suspendable
-    private fun recordTransaction(transaction: SignedTransaction): SignedTransaction =
-            subFlow(FinalityFlow(transaction, emptyList()))
 }
 
