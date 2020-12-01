@@ -5,6 +5,7 @@ import com.template.contracts.UserContract
 import com.template.states.Gender
 import com.template.states.Status
 import com.template.states.UserState
+import functions.FunctionFlow
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.contracts.requireThat
@@ -14,7 +15,8 @@ import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
-import javax.management.Query
+import net.corda.core.utilities.loggerFor
+
 
 @InitiatingFlow
 @StartableByRPC
@@ -24,10 +26,22 @@ class UpdatePartyInfo (private val name :String,
                   private val gender: Gender,
                   private val status : Status,
                   private val counterParty: Party,
-                  private val linearId: UniqueIdentifier) : FlowLogic<SignedTransaction>() {
+                  private val linearId: UniqueIdentifier) : FunctionFlow() {
 
-    private fun userStates(): UserState {
-        return UserState(
+    private companion object {
+        val log = loggerFor<InitiatingFlow>()
+    }
+
+    @Suspendable
+    override fun call(): SignedTransaction {
+
+        val sessions = initiateFlow(counterParty)
+        val command = Command(UserContract.Commands.Update(), listOf(counterParty).map { it.owningKey })
+        val queryCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(linearId))
+        val settle = serviceHub.vaultService.queryBy<UserState>(queryCriteria).states.single()
+
+        log.info("Creating output state")
+        val newUserState = UserState(
                 name = name,
                 age = age,
                 address = address,
@@ -37,54 +51,32 @@ class UpdatePartyInfo (private val name :String,
                 linearId = linearId,
                 participants = listOf(ourIdentity, counterParty)
         )
+        log.info("Building Transaction")
+        val utx = TransactionBuilder(myNotary)
+                .addInputState(settle)
+                .addOutputState(newUserState, UserContract.ID)
+                .addCommand(command)
+
+        return signCollectNotarize(
+                utx = utx,
+                session = listOf(sessions),
+                log = log
+        )
     }
 
-    @Suspendable
-    override fun call(): SignedTransaction {
-        val transaction: TransactionBuilder = transaction()
-        val signedTransaction: SignedTransaction = verifyAndSign(transaction)
-        val sessions: List<FlowSession> = (userStates().participants - ourIdentity).map { initiateFlow(it) }.toSet().toList()
-        val transactionSignedByAllParties: SignedTransaction = collectSignature(signedTransaction, sessions)
-        return recordTransaction(transactionSignedByAllParties, sessions)
-    }
+    @InitiatedBy(UpdatePartyInfo::class)
+    class Responder(val flowSession: FlowSession) : FlowLogic<SignedTransaction>() {
 
-    private fun transaction(): TransactionBuilder {
-        val queryCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(linearId))
-        val settle = serviceHub.vaultService.queryBy<UserState>(queryCriteria).states.single()
-        val notary: Party = serviceHub.networkMapCache.notaryIdentities.first()
-        val updateCommand = Command(UserContract.Commands.Update(), userStates().participants.map { it.owningKey })
-        val builder = TransactionBuilder(notary = notary)
-        builder.addInputState(settle)
-        builder.addOutputState(userStates(), UserContract.ID)
-        builder.addCommand(updateCommand)
-        return builder
-    }
-
-    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {
-        transaction.verify(serviceHub)
-        return serviceHub.signInitialTransaction(transaction)
-    }
-
-    @Suspendable
-    private fun collectSignature(
-            transaction: SignedTransaction,
-            sessions: List<FlowSession>
-    ): SignedTransaction = subFlow(CollectSignaturesFlow(transaction, sessions))
-
-    @Suspendable
-    private fun recordTransaction(transaction: SignedTransaction, sessions: List<FlowSession>): SignedTransaction =
-            subFlow(FinalityFlow(transaction, sessions))
-}
-@InitiatedBy(UpdatePartyInfo::class)
-class UpdatePartyInfoResponder(val flowSession: FlowSession) : FlowLogic<SignedTransaction>() {
-
-    @Suspendable
-    override fun call(): SignedTransaction {
-        val signTransactionFlow = object : SignTransactionFlow(flowSession) {
-            override fun checkTransaction(stx: SignedTransaction) = requireThat {
+        @Suspendable
+        override fun call(): SignedTransaction {
+            val signTransactionFlow = object : SignTransactionFlow(flowSession) {
+                override fun checkTransaction(stx: SignedTransaction) = requireThat {
+                    val output = stx.tx.outputs.single().data
+                    "The output must be a UserState" using (output is UserState)
+                }
             }
+            val signedTransaction = subFlow(signTransactionFlow)
+            return subFlow(ReceiveFinalityFlow(otherSideSession = flowSession, expectedTxId = signedTransaction.id))
         }
-        val signedTransaction = subFlow(signTransactionFlow)
-        return subFlow(ReceiveFinalityFlow(otherSideSession = flowSession, expectedTxId = signedTransaction.id))
     }
 }

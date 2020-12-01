@@ -2,6 +2,7 @@ package functions
 
 import co.paralleluniverse.fibers.Suspendable
 import com.template.flows.Initiator
+import com.template.flows.UpdatePartyInfo
 import com.template.states.UserState
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
@@ -11,9 +12,9 @@ import net.corda.core.transactions.TransactionBuilder
 import org.slf4j.Logger;
 
 abstract class FunctionFlow  :FlowLogic<SignedTransaction>()  {
-        val myNotary
-            get() = serviceHub.networkMapCache.notaryIdentities.firstOrNull()
-                    ?: throw FlowException("No Notary Found.")
+    val myNotary
+        get() = serviceHub.networkMapCache.notaryIdentities.firstOrNull()
+                ?: throw FlowException("No Notary Found.")
     /**
      *SignedTransaction with counter party
      */
@@ -23,7 +24,7 @@ abstract class FunctionFlow  :FlowLogic<SignedTransaction>()  {
             utx: TransactionBuilder,
             log: Logger
 
-) : SignedTransaction {
+    ) : SignedTransaction {
 
         log.info("Verify Transaction")
         utx.verify(serviceHub)
@@ -64,17 +65,18 @@ abstract class FunctionFlow  :FlowLogic<SignedTransaction>()  {
 
 }
 @InitiatedBy(Initiator::class)
-class Responder(val counterpartySession: FlowSession) : FlowLogic<SignedTransaction>() {
+
+class Responder(val flowSession: FlowSession) : FlowLogic<SignedTransaction>() {
 
     @Suspendable
     override fun call(): SignedTransaction {
-        val signedTransactionFlow = object : SignTransactionFlow(counterpartySession) {
+        val signedTransactionFlow = object : SignTransactionFlow(flowSession) {
             override fun checkTransaction(stx: SignedTransaction) = requireThat {
                 val output = stx.tx.outputs.single().data
                 "The output must be a UserState" using (output is UserState)
             }
         }
         val txWeJustSignedId = subFlow(signedTransactionFlow)
-        return subFlow(ReceiveFinalityFlow(counterpartySession, txWeJustSignedId.id))
+        return subFlow(ReceiveFinalityFlow(otherSideSession = flowSession, expectedTxId = txWeJustSignedId.id))
     }
 }
