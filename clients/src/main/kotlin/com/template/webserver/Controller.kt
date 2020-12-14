@@ -55,6 +55,11 @@ class Controller(rpc: NodeRPCConnection) {
             .filter { it.organisation !in (SERVICE_NAMES + myLegalName.organisation) })
     }
 
+
+    /**
+     * GET ALL THE STATES OF VAULT
+     * TODO: SHOW THE STATES IN JSON FORM
+     */
     @GetMapping(value = ["/states"], produces = [APPLICATION_JSON_VALUE])
     private fun states(): String {
         return proxy.vaultQueryBy<UserState>().states.toString()
